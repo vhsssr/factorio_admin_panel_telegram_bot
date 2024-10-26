@@ -144,45 +144,51 @@ def status_command(message):
 
 
 @bot.message_handler(commands=['mods'])
-def mods_command(message):
+def list_mods(message):
     if not is_user_allowed(message.from_user.id):
         bot.reply_to(message, "You do not have permission to execute this command.")
         return
 
     try:
+        # Load mod-list.json
         with open(MOD_LIST_PATH, 'r') as f:
-            mod_list = json.load(f).get("mods", [])
+            mod_list = json.load(f)
 
-        # Display mods with their current statuses (enabled/disabled)
+        # Create a keyboard with enable/disable options for each mod
         markup = types.InlineKeyboardMarkup()
-        for mod in mod_list:
-            mod_name = mod["name"]
-            mod_enabled = mod["enabled"]
-            status = "Enabled" if mod_enabled else "Disabled"
-            markup.add(types.InlineKeyboardButton(f"{mod_name}: {status}", callback_data=f"togglemod_{mod_name}"))
+        for mod in mod_list.get("mods", []):
+            status = "enabled" if mod["enabled"] else "disabled"
+            toggle_action = "disable" if mod["enabled"] else "enable"
+            markup.add(
+                types.InlineKeyboardButton(f"{mod['name']} ({status}) - Toggle {toggle_action}",
+                                           callback_data=f"togglemod_{mod['name']}_{toggle_action}")
+            )
 
-        bot.send_message(message.chat.id, "Current Mods:", reply_markup=markup)
+        bot.send_message(message.chat.id, "Select a mod to enable or disable:", reply_markup=markup)
+
     except Exception as e:
-        bot.reply_to(message, f"Error loading mod list: {str(e)}")
+        bot.send_message(message.chat.id, f"Error loading mods list: {str(e)}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("togglemod_"))
 def toggle_mod(call):
-    mod_name = call.data.split("_")[1]
+    data = call.data.split("_")
+    mod_name = data[1]
+    action = data[2]  # Action will be either 'enable' or 'disable'
 
     try:
         # Open and load mod-list.json content
         with open(MOD_LIST_PATH, 'r') as f:
             mod_list = json.load(f)
 
-        # Find mod by name and toggle its status
+        # Find mod by name and set its enabled status according to the action
         mod_found = False
         for mod in mod_list.get("mods", []):
             if mod["name"] == mod_name:
-                mod["enabled"] = not mod["enabled"]
+                mod["enabled"] = True if action == "enable" else False
                 status = "enabled" if mod["enabled"] else "disabled"
                 mod_found = True
-                bot.send_message(call.message.chat.id, f"Mod '{mod_name}' is now {status}.")
+                bot.send_message(call.message.chat.id, f"Mod '{mod_name}' has been {status}.")
                 break
 
         if not mod_found:
@@ -194,11 +200,11 @@ def toggle_mod(call):
             json.dump(mod_list, f, indent=4)
 
         # Restart server to apply changes
-        bot.send_message(call.message.chat.id, "Restarting server to apply changes...")
+        bot.send_message(call.message.chat.id, "Restarting server to apply mod changes...")
         subprocess.run(['sudo', 'systemctl', 'restart', FACTORIO_SERVICE_NAME])
 
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"Error toggling mod: {str(e)}")
+        bot.send_message(call.message.chat.id, f"Error updating mod: {str(e)}")
 
 
 @bot.message_handler(commands=['update_server'])
