@@ -1,10 +1,11 @@
-import os
 import json
-import telebot
-from telebot import types
-import subprocess
 import requests
+import subprocess
+import telebot
+import threading
+import time
 from datetime import timedelta
+from telebot import types
 
 # Replace 'YOUR_BOT_TOKEN' with your bot's token
 bot = telebot.TeleBot(BOT_TOKEN)
@@ -35,6 +36,7 @@ def get_factorio_version():
 
 SPACE_AGE_MODS = ["space-age", "quality", "elevated-rails"]  # Space-Age group mods
 
+
 @bot.message_handler(commands=['mods'])
 def space_age_mod(message):
     if not is_user_allowed(message.from_user.id):
@@ -52,6 +54,7 @@ def space_age_mod(message):
 
     bot.send_message(message.chat.id, "Toggle the 'Space-Age' mod group:", reply_markup=markup)
 
+
 def check_space_age_status():
     """Check if all 'space-age' mods are enabled in mod-list.json."""
     try:
@@ -63,13 +66,15 @@ def check_space_age_status():
         bot.send_message(chat_id, f"Error checking mod status: {str(e)}")
         return False
 
+
 @bot.callback_query_handler(func=lambda call: call.data in ["enable_space_age", "disable_space_age"])
 def toggle_space_age_mod(call):
     enable_space_age = call.data == "enable_space_age"
 
     try:
         # Step 1: Stop the Factorio server
-        stop_result = subprocess.run(['sudo', 'systemctl', 'stop', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+        stop_result = subprocess.run(['sudo', 'systemctl', 'stop', FACTORIO_SERVICE_NAME], capture_output=True,
+                                     text=True)
         if stop_result.returncode != 0:
             bot.send_message(call.message.chat.id, f"Error stopping server: {stop_result.stderr}")
             return
@@ -92,7 +97,8 @@ def toggle_space_age_mod(call):
         bot.send_message(call.message.chat.id, f"Space-Age mods have been {action_text}. Restarting server...")
 
         # Step 3: Restart the Factorio server
-        start_result = subprocess.run(['sudo', 'systemctl', 'start', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+        start_result = subprocess.run(['sudo', 'systemctl', 'start', FACTORIO_SERVICE_NAME], capture_output=True,
+                                      text=True)
         if start_result.returncode != 0:
             bot.send_message(call.message.chat.id, f"Error restarting server: {start_result.stderr}")
         else:
@@ -100,6 +106,7 @@ def toggle_space_age_mod(call):
 
     except Exception as e:
         bot.send_message(call.message.chat.id, f"An error occurred: {str(e)}")
+
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
@@ -190,28 +197,6 @@ def handle_document(message):
     bot.reply_to(message, f"File '{file_name}' successfully saved to '{SAVES_DIR}'.")
 
 
-@bot.message_handler(commands=['status'])
-def status_command(message):
-    """Check and display server status."""
-    try:
-        # Get server status with `factorio` command or through system logs
-        # Assuming this command returns active save file name, player count, and uptime
-        result = subprocess.run(['sudo', 'systemctl', 'status', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
-        if result.returncode == 0:
-            # Parsing simulated status output for demonstration purposes
-            # Use actual command outputs if they differ
-            save_file = "example_save"  # Extract save file name dynamically
-            player_count = 5  # Extract player count dynamically
-            uptime = timedelta(seconds=3600)  # Calculate actual uptime
-
-            bot.reply_to(message, f"Server Status:\nSave: {save_file}\nPlayers: {player_count}\nUptime: {uptime}")
-        else:
-            bot.reply_to(message, "The server is currently stopped.")
-    except Exception as e:
-        bot.reply_to(message, f"Error retrieving server status: {str(e)}")
-
-selected_mods = {}
-
 @bot.message_handler(commands=['update_server'])
 def update_server(message):
     if not is_user_allowed(message.from_user.id):
@@ -263,6 +248,84 @@ def check_version(message):
     version = get_factorio_version()
     bot.reply_to(message, f"Current Factorio version: {version}")
 
+
+# Parameters to control notification frequency
+max_unavailable_notifications = 3  # Maximum number of consecutive unavailability messages
+unavailable_notifications_count = 0  # Counter for unavailability notifications
+
+# Check interval in seconds
+CHECK_INTERVAL = 30
+last_status = True  # Last known server status (True - active, False - unavailable)
+
+
+# Function to check server status periodically
+def check_server_status_periodically():
+    global unavailable_notifications_count, last_status
+    while True:
+        time.sleep(CHECK_INTERVAL)
+        result = subprocess.run(['sudo', 'systemctl', 'status', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+        is_active = result.returncode == 0  # Check if server is active
+
+        if not is_active and unavailable_notifications_count < max_unavailable_notifications:
+            # If server is not active and we haven't exceeded notification limit, send a message
+            bot.send_message(YOUR_CHAT_ID, "🔴 Server unavailable.")
+            unavailable_notifications_count += 1
+            last_status = False
+        elif is_active:
+            # If server is active again, reset the counter
+            unavailable_notifications_count = 0
+            last_status = True
+
+
+# Start background task for periodic status checks
+threading.Thread(target=check_server_status_periodically, daemon=True).start()
+
+
+# Function for handling /status command
+@bot.message_handler(commands=['status'])
+def status_command(message):
+    """Check server status on demand."""
+    global unavailable_notifications_count, last_status
+
+    result = subprocess.run(['sudo', 'systemctl', 'status', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+    is_active = result.returncode == 0  # Check if server is active
+
+    if is_active:
+        # If the server is active, display status information
+        save_file = "example_save"  # Replace with dynamic extraction
+        player_count = 5  # Replace with dynamic extraction
+        uptime = timedelta(seconds=3600)  # Replace with real uptime calculation
+        bot.reply_to(message, f"🟢 Server is running:\nSave: {save_file}\nPlayers: {player_count}\nUptime: {uptime}")
+        last_status = True
+        unavailable_notifications_count = 0  # Reset error counter
+    else:
+        # If the server is not active, notify the user
+        bot.reply_to(message, "🔴 Server unavailable.")
+        last_status = False
+        unavailable_notifications_count += 1  # Increment error counter
+
+
+# Replace YOUR_CHAT_ID with message.chat.id so bot sends messages to the current chat
+def check_server_status_periodically():
+    global unavailable_notifications_count, last_status
+    while True:
+        time.sleep(CHECK_INTERVAL)
+        result = subprocess.run(['sudo', 'systemctl', 'status', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+        is_active = result.returncode == 0  # Check if server is active
+
+        if not is_active and unavailable_notifications_count < max_unavailable_notifications:
+            # If server is not active and we haven't exceeded notification limit, send a message to the chat
+            bot.send_message(message.chat.id, "🔴 Server unavailable.")
+            unavailable_notifications_count += 1
+            last_status = False
+        elif is_active:
+            # If server is active again, reset the counter
+            unavailable_notifications_count = 0
+            last_status = True
+
+
+# Background task will now send the messages to the same chat as commands
+threading.Thread(target=check_server_status_periodically, daemon=True).start()
 
 if __name__ == '__main__':
     bot.polling(none_stop=True)
