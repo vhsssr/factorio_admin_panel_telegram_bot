@@ -149,63 +149,84 @@ def list_mods(message):
         bot.reply_to(message, "You do not have permission to execute this command.")
         return
 
+    display_mod_list(message.chat.id, "Select mods to enable or disable:")
+
+def display_mod_list(chat_id, message_text):
     try:
         # Load mod-list.json
         with open(MOD_LIST_PATH, 'r') as f:
             mod_list = json.load(f)
 
-        # Create a keyboard with enable/disable options for each mod
+        # Display mods with current selections from selected_mods
         markup = types.InlineKeyboardMarkup()
         for mod in mod_list.get("mods", []):
-            status = "enabled" if mod["enabled"] else "disabled"
-            toggle_action = "disable" if mod["enabled"] else "enable"
+            is_enabled = selected_mods.get(mod["name"], mod["enabled"])
+            status = "enabled" if is_enabled else "disabled"
+            toggle_action = "disable" if is_enabled else "enable"
             markup.add(
                 types.InlineKeyboardButton(f"{mod['name']} ({status}) - Toggle {toggle_action}",
                                            callback_data=f"togglemod_{mod['name']}_{toggle_action}")
             )
 
-        bot.send_message(message.chat.id, "Select a mod to enable or disable:", reply_markup=markup)
+        # Add confirm button
+        markup.add(types.InlineKeyboardButton("Confirm Changes", callback_data="confirm_mod_changes"))
+
+        bot.send_message(chat_id, message_text, reply_markup=markup)
 
     except Exception as e:
-        bot.send_message(message.chat.id, f"Error loading mods list: {str(e)}")
+        bot.send_message(chat_id, f"Error loading mod list: {str(e)}")
 
 
 @bot.callback_query_handler(func=lambda call: call.data.startswith("togglemod_"))
 def toggle_mod(call):
     data = call.data.split("_")
     mod_name = data[1]
-    action = data[2]  # Action will be either 'enable' or 'disable'
+    action = data[2]  # 'enable' or 'disable'
 
     try:
         # Open and load mod-list.json content
         with open(MOD_LIST_PATH, 'r') as f:
             mod_list = json.load(f)
 
-        # Find mod by name and set its enabled status according to the action
-        mod_found = False
+        # Update selected_mods to reflect the user’s choices
         for mod in mod_list.get("mods", []):
             if mod["name"] == mod_name:
-                mod["enabled"] = True if action == "enable" else False
-                status = "enabled" if mod["enabled"] else "disabled"
-                mod_found = True
-                bot.send_message(call.message.chat.id, f"Mod '{mod_name}' has been {status}.")
+                selected_mods[mod_name] = True if action == "enable" else False
+                status = "enabled" if selected_mods[mod_name] else "disabled"
+                bot.send_message(call.message.chat.id, f"Mod '{mod_name}' set to be {status}.")
                 break
 
-        if not mod_found:
-            bot.send_message(call.message.chat.id, f"Mod '{mod_name}' not found in the list.")
-            return
+        # After updating, show the mod list again
+        display_mod_list(call.message.chat.id, "Select mods and confirm your choices when ready.")
 
-        # Save the updated mod list back to mod-list.json
+    except Exception as e:
+        bot.send_message(call.message.chat.id, f"Error toggling mod: {str(e)}")
+
+@bot.callback_query_handler(func=lambda call: call.data == "confirm_mod_changes")
+def confirm_mod_changes(call):
+    try:
+        # Open mod-list.json to apply the changes
+        with open(MOD_LIST_PATH, 'r') as f:
+            mod_list = json.load(f)
+
+        # Apply selected_mods changes to mod_list
+        for mod in mod_list.get("mods", []):
+            if mod["name"] in selected_mods:
+                mod["enabled"] = selected_mods[mod["name"]]
+
+        # Save changes to mod-list.json
         with open(MOD_LIST_PATH, 'w') as f:
             json.dump(mod_list, f, indent=4)
 
-        # Restart server to apply changes
+        # Clear temporary selection
+        selected_mods.clear()
+
+        # Restart the server to apply mod changes
         bot.send_message(call.message.chat.id, "Restarting server to apply mod changes...")
         subprocess.run(['sudo', 'systemctl', 'restart', FACTORIO_SERVICE_NAME])
 
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"Error updating mod: {str(e)}")
-
+        bot.send_message(call.message.chat.id, f"Error applying mod changes: {str(e)}")
 
 @bot.message_handler(commands=['update_server'])
 def update_server(message):
