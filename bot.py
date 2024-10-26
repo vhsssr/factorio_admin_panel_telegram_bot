@@ -142,6 +142,7 @@ def status_command(message):
     except Exception as e:
         bot.reply_to(message, f"Error retrieving server status: {str(e)}")
 
+selected_mods = {}
 
 @bot.message_handler(commands=['mods'])
 def list_mods(message):
