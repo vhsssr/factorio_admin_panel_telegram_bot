@@ -230,6 +230,15 @@ def update_server(message):
     version = get_factorio_version()
     bot.reply_to(message, f"Updated Factorio version: {version}")
 
+@bot.message_handler(commands=['version'])
+def check_version(message):
+    if not is_user_allowed(message.from_user.id):
+        bot.reply_to(message, "You do not have permission to execute this command.")
+        return
+
+    version = get_factorio_version()
+    bot.reply_to(message, f"Current Factorio version: {version}")
+
 
 if __name__ == '__main__':
     bot.polling(none_stop=True)
