@@ -33,6 +33,70 @@ def get_factorio_version():
         return f"Error retrieving version: {str(e)}"
 
 
+SPACE_AGE_MODS = ["space-age", "quality", "elevated-rails"]  # List mods that are part of the "space-age" group
+
+
+@bot.message_handler(commands=['mods'])
+def space_age_mod(message):
+    if not is_user_allowed(message.from_user.id):
+        bot.reply_to(message, "You do not have permission to execute this command.")
+        return
+
+    # Load mod status to check if "space-age" is enabled
+    space_age_enabled = check_space_age_status()
+
+    # Create inline buttons to enable or disable the "space-age" mod group
+    markup = types.InlineKeyboardMarkup()
+    action_text = "Disable Space-Age Mods" if space_age_enabled else "Enable Space-Age Mods"
+    action_callback = "disable_space_age" if space_age_enabled else "enable_space_age"
+    markup.add(types.InlineKeyboardButton(action_text, callback_data=action_callback))
+
+    bot.send_message(message.chat.id, "Toggle the 'Space-Age' mod group:", reply_markup=markup)
+
+
+def check_space_age_status():
+    """Check if the 'space-age' mod and its dependencies are enabled in mod-list.json"""
+    try:
+        with open(MOD_LIST_PATH, 'r') as f:
+            mod_list = json.load(f)
+
+        # Check if all SPACE_AGE_MODS are enabled
+        enabled_mods = {mod["name"]: mod["enabled"] for mod in mod_list.get("mods", [])}
+        return all(enabled_mods.get(mod, False) for mod in SPACE_AGE_MODS)
+    except Exception as e:
+        bot.send_message(chat_id, f"Error checking mod status: {str(e)}")
+        return False
+
+
+@bot.callback_query_handler(func=lambda call: call.data in ["enable_space_age", "disable_space_age"])
+def toggle_space_age_mod(call):
+    enable_space_age = call.data == "enable_space_age"
+
+    try:
+        # Load the mod list
+        with open(MOD_LIST_PATH, 'r') as f:
+            mod_list = json.load(f)
+
+        # Update the "enabled" status for all SPACE_AGE_MODS
+        for mod in mod_list.get("mods", []):
+            if mod["name"] in SPACE_AGE_MODS:
+                mod["enabled"] = enable_space_age
+
+        # Save the updated mod list
+        with open(MOD_LIST_PATH, 'w') as f:
+            json.dump(mod_list, f, indent=4)
+
+        # Confirm changes to user and restart the server
+        action_text = "enabled" if enable_space_age else "disabled"
+        bot.send_message(call.message.chat.id, f"Space-Age mods have been {action_text}. Restarting server...")
+
+        # Restart the Factorio server to apply changes
+        subprocess.run(['sudo', 'systemctl', 'restart', FACTORIO_SERVICE_NAME])
+
+    except Exception as e:
+        bot.send_message(call.message.chat.id, f"Error toggling Space-Age mods: {str(e)}")
+
+
 @bot.message_handler(commands=['start'])
 def start_command(message):
     bot.reply_to(message,
@@ -143,91 +207,6 @@ def status_command(message):
         bot.reply_to(message, f"Error retrieving server status: {str(e)}")
 
 selected_mods = {}
-
-@bot.message_handler(commands=['mods'])
-def list_mods(message):
-    if not is_user_allowed(message.from_user.id):
-        bot.reply_to(message, "You do not have permission to execute this command.")
-        return
-
-    display_mod_list(message.chat.id, "Select mods to enable or disable:")
-
-def display_mod_list(chat_id, message_text):
-    try:
-        # Load mod-list.json
-        with open(MOD_LIST_PATH, 'r') as f:
-            mod_list = json.load(f)
-
-        # Display mods with current selections from selected_mods
-        markup = types.InlineKeyboardMarkup()
-        for mod in mod_list.get("mods", []):
-            is_enabled = selected_mods.get(mod["name"], mod["enabled"])
-            status = "enabled" if is_enabled else "disabled"
-            toggle_action = "disable" if is_enabled else "enable"
-            markup.add(
-                types.InlineKeyboardButton(f"{mod['name']} ({status}) - Toggle {toggle_action}",
-                                           callback_data=f"togglemod_{mod['name']}_{toggle_action}")
-            )
-
-        # Add confirm button
-        markup.add(types.InlineKeyboardButton("Confirm Changes", callback_data="confirm_mod_changes"))
-
-        bot.send_message(chat_id, message_text, reply_markup=markup)
-
-    except Exception as e:
-        bot.send_message(chat_id, f"Error loading mod list: {str(e)}")
-
-
-@bot.callback_query_handler(func=lambda call: call.data.startswith("togglemod_"))
-def toggle_mod(call):
-    data = call.data.split("_")
-    mod_name = data[1]
-    action = data[2]  # 'enable' or 'disable'
-
-    try:
-        # Open and load mod-list.json content
-        with open(MOD_LIST_PATH, 'r') as f:
-            mod_list = json.load(f)
-
-        # Update selected_mods to reflect the user’s choices
-        for mod in mod_list.get("mods", []):
-            if mod["name"] == mod_name:
-                selected_mods[mod_name] = True if action == "enable" else False
-                status = "enabled" if selected_mods[mod_name] else "disabled"
-                bot.send_message(call.message.chat.id, f"Mod '{mod_name}' set to be {status}.")
-                break
-
-        # After updating, show the mod list again
-        display_mod_list(call.message.chat.id, "Select mods and confirm your choices when ready.")
-
-    except Exception as e:
-        bot.send_message(call.message.chat.id, f"Error toggling mod: {str(e)}")
-
-@bot.callback_query_handler(func=lambda call: call.data == "confirm_mod_changes")
-def confirm_mod_changes(call):
-    try:
-        # Open mod-list.json to apply the changes
-        with open(MOD_LIST_PATH, 'r') as f:
-            mod_list = json.load(f)
-
-        # Apply selected_mods changes to mod_list
-        for mod in mod_list.get("mods", []):
-            if mod["name"] in selected_mods:
-                mod["enabled"] = selected_mods[mod["name"]]
-
-        # Save changes to mod-list.json
-        with open(MOD_LIST_PATH, 'w') as f:
-            json.dump(mod_list, f, indent=4)
-
-        # Clear temporary selection
-        selected_mods.clear()
-
-        # Restart the server to apply mod changes
-        bot.send_message(call.message.chat.id, "Restarting server to apply mod changes...")
-        subprocess.run(['sudo', 'systemctl', 'restart', FACTORIO_SERVICE_NAME])
-
-    except Exception as e:
-        bot.send_message(call.message.chat.id, f"Error applying mod changes: {str(e)}")
 
 @bot.message_handler(commands=['update_server'])
 def update_server(message):
