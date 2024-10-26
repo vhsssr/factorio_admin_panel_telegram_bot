@@ -36,7 +36,12 @@ def get_factorio_version():
 @bot.message_handler(commands=['start'])
 def start_command(message):
     bot.reply_to(message,
-                 "Hello! Use /saves to select a save file, /file to upload a file, /mods to manage mods, or /status to check server status.")
+                 "Hello! Use /saves to select a save file, \n"
+                 "/file to upload a save file, \n"
+                 "/mods to manage mods,  \n"
+                 "/status to check server status \n"
+                 "/version to check installed server version \n"
+                 "/update_server to update factorio server version. \n")
 
 
 @bot.message_handler(commands=['saves'])
@@ -166,22 +171,29 @@ def toggle_mod(call):
     mod_name = call.data.split("_")[1]
 
     try:
+        # Open and load mod-list.json content
         with open(MOD_LIST_PATH, 'r') as f:
             mod_list = json.load(f)
 
-        # Toggle the selected mod's "enabled" status
+        # Find mod by name and toggle its status
+        mod_found = False
         for mod in mod_list.get("mods", []):
             if mod["name"] == mod_name:
                 mod["enabled"] = not mod["enabled"]
                 status = "enabled" if mod["enabled"] else "disabled"
+                mod_found = True
                 bot.send_message(call.message.chat.id, f"Mod '{mod_name}' is now {status}.")
                 break
 
-        # Save changes back to mod-list.json
+        if not mod_found:
+            bot.send_message(call.message.chat.id, f"Mod '{mod_name}' not found in the list.")
+            return
+
+        # Save the updated mod list back to mod-list.json
         with open(MOD_LIST_PATH, 'w') as f:
             json.dump(mod_list, f, indent=4)
 
-        # Restart server to apply mod changes
+        # Restart server to apply changes
         bot.send_message(call.message.chat.id, "Restarting server to apply changes...")
         subprocess.run(['sudo', 'systemctl', 'restart', FACTORIO_SERVICE_NAME])
 
@@ -229,6 +241,7 @@ def update_server(message):
 
     version = get_factorio_version()
     bot.reply_to(message, f"Updated Factorio version: {version}")
+
 
 @bot.message_handler(commands=['version'])
 def check_version(message):
