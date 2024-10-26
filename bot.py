@@ -32,7 +32,8 @@ def get_factorio_version():
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
-    bot.reply_to(message, "Hello! Use the /saves command to select a save file or /file to upload a file.")
+    bot.reply_to(message,
+                 "Hello! Use the /saves command to select a save file or /file to upload a file. You can check server version installed via /version and /update_server if needed (adm permiss required)")
 
 
 @bot.message_handler(commands=['saves'])
@@ -162,10 +163,6 @@ def update_server(message):
 
 @bot.message_handler(commands=['version'])
 def check_version(message):
-    if not is_user_allowed(message.from_user.id):
-        bot.reply_to(message, "You do not have permission to execute this command.")
-        return
-
     version = get_factorio_version()
     bot.reply_to(message, f"Current Factorio version: {version}")
 
