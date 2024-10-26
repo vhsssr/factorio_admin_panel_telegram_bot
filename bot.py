@@ -33,8 +33,7 @@ def get_factorio_version():
         return f"Error retrieving version: {str(e)}"
 
 
-SPACE_AGE_MODS = ["space-age", "quality", "elevated-rails"]  # List mods that are part of the "space-age" group
-
+SPACE_AGE_MODS = ["space-age", "quality", "elevated-rails"]  # Space-Age group mods
 
 @bot.message_handler(commands=['mods'])
 def space_age_mod(message):
@@ -42,10 +41,10 @@ def space_age_mod(message):
         bot.reply_to(message, "You do not have permission to execute this command.")
         return
 
-    # Load mod status to check if "space-age" is enabled
+    # Check if "space-age" mods are currently enabled
     space_age_enabled = check_space_age_status()
 
-    # Create inline buttons to enable or disable the "space-age" mod group
+    # Inline buttons to enable or disable "space-age" mod group
     markup = types.InlineKeyboardMarkup()
     action_text = "Disable Space-Age Mods" if space_age_enabled else "Enable Space-Age Mods"
     action_callback = "disable_space_age" if space_age_enabled else "enable_space_age"
@@ -53,49 +52,54 @@ def space_age_mod(message):
 
     bot.send_message(message.chat.id, "Toggle the 'Space-Age' mod group:", reply_markup=markup)
 
-
 def check_space_age_status():
-    """Check if the 'space-age' mod and its dependencies are enabled in mod-list.json"""
+    """Check if all 'space-age' mods are enabled in mod-list.json."""
     try:
         with open(MOD_LIST_PATH, 'r') as f:
             mod_list = json.load(f)
-
-        # Check if all SPACE_AGE_MODS are enabled
         enabled_mods = {mod["name"]: mod["enabled"] for mod in mod_list.get("mods", [])}
         return all(enabled_mods.get(mod, False) for mod in SPACE_AGE_MODS)
     except Exception as e:
         bot.send_message(chat_id, f"Error checking mod status: {str(e)}")
         return False
 
-
 @bot.callback_query_handler(func=lambda call: call.data in ["enable_space_age", "disable_space_age"])
 def toggle_space_age_mod(call):
     enable_space_age = call.data == "enable_space_age"
 
     try:
-        # Load the mod list
+        # Step 1: Stop the Factorio server
+        stop_result = subprocess.run(['sudo', 'systemctl', 'stop', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+        if stop_result.returncode != 0:
+            bot.send_message(call.message.chat.id, f"Error stopping server: {stop_result.stderr}")
+            return
+
+        # Step 2: Update the mod-list.json file
         with open(MOD_LIST_PATH, 'r') as f:
             mod_list = json.load(f)
 
-        # Update the "enabled" status for all SPACE_AGE_MODS
+        # Enable or disable all mods in SPACE_AGE_MODS
         for mod in mod_list.get("mods", []):
             if mod["name"] in SPACE_AGE_MODS:
                 mod["enabled"] = enable_space_age
 
-        # Save the updated mod list
+        # Save changes to mod-list.json
         with open(MOD_LIST_PATH, 'w') as f:
             json.dump(mod_list, f, indent=4)
 
-        # Confirm changes to user and restart the server
+        # Inform the user about the change
         action_text = "enabled" if enable_space_age else "disabled"
         bot.send_message(call.message.chat.id, f"Space-Age mods have been {action_text}. Restarting server...")
 
-        # Restart the Factorio server to apply changes
-        subprocess.run(['sudo', 'systemctl', 'restart', FACTORIO_SERVICE_NAME])
+        # Step 3: Restart the Factorio server
+        start_result = subprocess.run(['sudo', 'systemctl', 'start', FACTORIO_SERVICE_NAME], capture_output=True, text=True)
+        if start_result.returncode != 0:
+            bot.send_message(call.message.chat.id, f"Error restarting server: {start_result.stderr}")
+        else:
+            bot.send_message(call.message.chat.id, "Server successfully restarted with updated mods.")
 
     except Exception as e:
-        bot.send_message(call.message.chat.id, f"Error toggling Space-Age mods: {str(e)}")
-
+        bot.send_message(call.message.chat.id, f"An error occurred: {str(e)}")
 
 @bot.message_handler(commands=['start'])
 def start_command(message):
