@@ -1,8 +1,10 @@
 #!/bin/bash
 
 # path to bot file
-BOT_PATH="/home/root/mybot/bot.py"  # change username in path
+PATH="../bot.py"
+BOT_PATH=$(realpath "$PATH")
 SERVICE_NAME="t_bot"
+PYTHON_PATH=$(which python || which python3)
 
 # check existence bot.py
 if [ ! -f "$BOT_PATH" ]; then
@@ -21,8 +23,8 @@ Description=Telegram Bot
 After=network.target
 
 [Service]
-ExecStart=/root/mybotenv/bin/python3 $BOT_PATH
-WorkingDirectory=$(dirname $BOT_PATH)
+ExecStart=$PYTHON_PATH $BOT_PATH
+WorkingDirectory=$(dirname "$BOT_PATH")
 Restart=on-failure
 User=root
 Group=root
