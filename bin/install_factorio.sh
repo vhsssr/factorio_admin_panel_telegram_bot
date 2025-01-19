@@ -15,7 +15,11 @@ function exit_with_error {
 
 # 1. Create a system user for Factorio
 echo "Creating user $FACTORIO_USER..."
-sudo useradd -r -m -d $FACTORIO_DIR -s /bin/false $FACTORIO_USER || exit_with_error "Failed to create user $FACTORIO_USER"
+if id "$FACTORIO_USER" &>/dev/null; then
+    echo "User $FACTORIO_USER already exists, skipping user creation."
+else
+    sudo useradd -r -m -d "$FACTORIO_DIR" -s /bin/false "$FACTORIO_USER" || exit_with_error "Failed to create user $FACTORIO_USER"
+fi
 
 # 2. Download and install Factorio
 echo "Downloading Factorio version $FACTORIO_VERSION..."
