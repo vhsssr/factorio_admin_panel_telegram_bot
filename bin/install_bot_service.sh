@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # path to bot file
-PATH="../bot.py"
-BOT_PATH=$(realpath "$PATH")
+BOT_PATH=$(cd "$PWD/.." && pwd)/bot.py
 SERVICE_NAME="t_bot"
 PYTHON_PATH=$(which python || which python3)
 
