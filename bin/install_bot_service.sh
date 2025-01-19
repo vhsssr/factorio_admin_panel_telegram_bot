@@ -2,6 +2,8 @@
 
 # path to bot file
 BOT_PATH=$(cd "$PWD/.." && pwd)/bot.py
+echo ".>>..>"
+echo $BOT_PATH
 SERVICE_NAME="t_bot"
 PYTHON_PATH=$(which python || which python3)
 
