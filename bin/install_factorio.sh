@@ -28,11 +28,11 @@ sudo chown $FACTORIO_USER:$FACTORIO_USER $FACTORIO_DIR
 
 # Download Factorio
 cd /tmp
-wget https://factorio.com/get-download/$FACTORIO_VERSION/headless/linux64 -O factorio.tar.gz || exit_with_error "Failed to download Factorio"
+wget https://factorio.com/get-download/$FACTORIO_VERSION/headless/linux64 -O factorio.tar.xz || exit_with_error "Failed to download Factorio"
 
 # Extract to /opt/factorio
-sudo tar -xzf factorio.tar.gz -C $FACTORIO_DIR --strip-components=1 || exit_with_error "Failed to extract Factorio"
-rm factorio.tar.gz
+sudo tar -xJf factorio.tar.xz -C $FACTORIO_DIR --strip-components=1 || exit_with_error "Failed to extract Factorio"
+rm factorio.tar.xz
 
 # Create a directory for saves
 sudo mkdir -p $FACTORIO_DIR/saves
