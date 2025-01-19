@@ -1,9 +1,8 @@
 #!/bin/bash
 
 # path to bot file
-BOT_PATH=$(cd "$PWD/.." && pwd)/bot.py
-echo ".>>..>"
-echo $BOT_PATH
+PROJECT_ROOT=$(git rev-parse --show-toplevel)
+BOT_PATH="$PROJECT_ROOT/bot.py"
 SERVICE_NAME="t_bot"
 PYTHON_PATH=$(which python || which python3)
 
