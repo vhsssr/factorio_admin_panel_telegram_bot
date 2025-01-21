@@ -1,13 +1,14 @@
 import json
+import os
+import re
 import requests
 import subprocess
 import telebot
-import threading
-import time
 from datetime import timedelta
 from telebot import types
 
 # Replace 'YOUR_BOT_TOKEN' with your bot's token
+BOT_TOKEN = 'YOUR_BOT_TOKEN_HERE'
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # Directory path for save files, Factorio server directory, and mods file

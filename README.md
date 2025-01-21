@@ -28,18 +28,26 @@ This project is a Telegram bot to help manage a Factorio server. It allows serve
    ```bash
    pip install -r requirements.txt
    ```
+   shell prerequisites:   
+   ```bash
+      sudo yum install wget -y
+      sudo yum install pip -y
+      sudo yum install firewalld -y
+      sudo systemctl start firewalld
+      sudo systemctl enable firewalld
+
+   ```
+
 
 3. Configure environment variables:
    - **`TELEGRAM_BOT_TOKEN`**: Your Telegram Bot API token
-   - **`FACTORIO_SERVER_PATH`**: Path to your Factorio server executable
-   - **`ADMIN_CHAT_ID`**: Your Telegram user ID for admin-only commands
+   - **`ADMIN_CHAT_ID`**: Your Telegram user ID for admin-only commands as a list, e.g. ```['user1','user2']```
 
    Create a `.env` file in the project root and add the following:
 
    ```plaintext
    TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-   FACTORIO_SERVER_PATH=/path/to/factorio
-   ADMIN_CHAT_ID=your_telegram_id
+   ADMIN_CHAT_ID=['user1','user2']
    ```
 
 4. Run the bot:
