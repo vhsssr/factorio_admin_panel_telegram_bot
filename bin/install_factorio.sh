@@ -65,5 +65,11 @@ echo "Enabling and starting Factorio service..."
 sudo systemctl daemon-reload
 sudo systemctl enable factorio.service || exit_with_error "Failed to enable Factorio service"
 sudo systemctl start factorio.service || exit_with_error "Failed to start Factorio service"
+chmod +x ./bin/factorio_server_start.sh
+
+echo "Enabling ports"
+sudo firewall-cmd --zone=public --add-port=34197/tcp --permanent
+sudo firewall-cmd --zone=public --add-port=34197/udp --permanent
+sudo firewall-cmd --reload
 
 echo "Factorio installation and service setup complete!"

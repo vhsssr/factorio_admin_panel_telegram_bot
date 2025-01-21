@@ -159,7 +159,7 @@ def confirm_selection(call):
     data = call.data.split("_")
     action, save_file = data[1], "_".join(data[2:])
     save_file_name = os.path.splitext(save_file)[0]
-    factorio_command = "/root/bin/start_factorio.sh"
+    factorio_command = "bin/factorio_server_start.sh"
 
     if action == "yes":
         try:
